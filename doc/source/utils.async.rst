@@ -4,22 +4,10 @@ utils\.async package
 Submodules
 ----------
 
-utils\.async\.lock module
--------------------------
+.. toctree::
 
-.. automodule:: utils.async.lock
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-utils\.async\.waitgroup module
-------------------------------
-
-.. automodule:: utils.async.waitgroup
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
+   utils.async.lock
+   utils.async.waitgroup
 
 Module contents
 ---------------
