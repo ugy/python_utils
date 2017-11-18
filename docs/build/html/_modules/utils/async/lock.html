@@ -1,0 +1,197 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>utils.async.lock &#8212; utils 1.0.0 documentation</title>
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '1.0.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for utils.async.lock</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;async.lock module provides a asynchronous RWLock working on top of asyncio Event</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">enum</span> <span class="k">import</span> <span class="n">Enum</span>
+<span class="kn">import</span> <span class="nn">asyncio</span>
+
+<div class="viewcode-block" id="AsyncRWLock"><a class="viewcode-back" href="../../../utils.async.html#utils.async.lock.AsyncRWLock">[docs]</a><span class="k">class</span> <span class="nc">AsyncRWLock</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;A multiple read/single write lock asynchronous implementation of asyncio lock providing</span>
+<span class="sd">    locking context with specific lock policy (read/write)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="AsyncRWLock.Permissions"><a class="viewcode-back" href="../../../utils.async.html#utils.async.lock.AsyncRWLock.Permissions">[docs]</a>    <span class="k">class</span> <span class="nc">Permissions</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Three possible states:</span>
+<span class="sd">        none</span>
+<span class="sd">        read</span>
+<span class="sd">        write</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">none</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">read</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">write</span> <span class="o">=</span> <span class="mi">2</span></div>
+
+    <span class="k">class</span> <span class="nc">_Context</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Read lock context</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">afunc</span><span class="p">,</span> <span class="n">efunc</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__afunc</span> <span class="o">=</span> <span class="n">afunc</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__efunc</span> <span class="o">=</span> <span class="n">efunc</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__fake_await_event</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">Event</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__fake_await_event</span><span class="o">.</span><span class="n">set</span><span class="p">()</span>
+
+        <span class="k">async</span> <span class="k">def</span> <span class="nf">__aenter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">__afunc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">__afunc</span><span class="p">()</span>
+
+        <span class="k">async</span> <span class="k">def</span> <span class="nf">__aexit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">__efunc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">__fake_await_event</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">__efunc</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__wlock_request</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__wevent</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">Event</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__wevent</span><span class="o">.</span><span class="n">set</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">__revent</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">Event</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__revent</span><span class="o">.</span><span class="n">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__readers_count</span> <span class="o">=</span> <span class="mi">0</span>
+
+<div class="viewcode-block" id="AsyncRWLock.context"><a class="viewcode-back" href="../../../utils.async.html#utils.async.lock.AsyncRWLock.context">[docs]</a>    <span class="k">def</span> <span class="nf">context</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">permission</span><span class="p">:</span> <span class="n">Permissions</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Create guard context with `permission` guard</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            permission: The permission to lock with</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">permission</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">Permissions</span><span class="o">.</span><span class="n">read</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">read_context</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">permission</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">Permissions</span><span class="o">.</span><span class="n">write</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">write_context</span><span class="p">()</span>
+
+        <span class="c1"># This context does nothing</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_Context</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AsyncRWLock.read_context"><a class="viewcode-back" href="../../../utils.async.html#utils.async.lock.AsyncRWLock.read_context">[docs]</a>    <span class="k">def</span> <span class="nf">read_context</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Create guard context with read guard</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_Context</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">r_lock</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">r_unlock</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AsyncRWLock.write_context"><a class="viewcode-back" href="../../../utils.async.html#utils.async.lock.AsyncRWLock.write_context">[docs]</a>    <span class="k">def</span> <span class="nf">write_context</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Create guard context with write guard</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_Context</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lock</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">unlock</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AsyncRWLock.r_lock"><a class="viewcode-back" href="../../../utils.async.html#utils.async.lock.AsyncRWLock.r_lock">[docs]</a>    <span class="k">async</span> <span class="k">def</span> <span class="nf">r_lock</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Lock the guard for reading, can be multiple readers</span>
+<span class="sd">        if lock has been called, wait until unlock is done</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">__wevent</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__readers_count</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">__revent</span><span class="o">.</span><span class="n">is_set</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__revent</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="AsyncRWLock.lock"><a class="viewcode-back" href="../../../utils.async.html#utils.async.lock.AsyncRWLock.lock">[docs]</a>    <span class="k">async</span> <span class="k">def</span> <span class="nf">lock</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Lock the guard for writing when there is no more reader</span>
+<span class="sd">        r_lock calls will now wait for the write lock to be unlocked</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">__wevent</span><span class="o">.</span><span class="n">is_set</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Lock has already been write locked&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__wevent</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">__revent</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="AsyncRWLock.r_unlock"><a class="viewcode-back" href="../../../utils.async.html#utils.async.lock.AsyncRWLock.r_unlock">[docs]</a>    <span class="k">def</span> <span class="nf">r_unlock</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Unlock the guard for reading, if there is no more reader, unlock the lock for writing</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">__readers_count</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Can&#39;t read unlock an lock with zero readers&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">__readers_count</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">__readers_count</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__revent</span><span class="o">.</span><span class="n">set</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="AsyncRWLock.unlock"><a class="viewcode-back" href="../../../utils.async.html#utils.async.lock.AsyncRWLock.unlock">[docs]</a>    <span class="k">def</span> <span class="nf">unlock</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Unlock the guard for writing, waiting readers are notified and can acquire the lock</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">__wevent</span><span class="o">.</span><span class="n">set</span><span class="p">()</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Tony Tanon.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.5</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
