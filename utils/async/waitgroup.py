@@ -73,18 +73,18 @@ class WaitGroup:
         self.done()
 
 
-class CancellableWaitGroup(WaitGroup):
+class TaskWaitGroup(WaitGroup):
     """A waitgroup that can cancel all tasks added to it, calling add when the task is added, and
     done when the tasks has completed.
 
-    The CancellableWaitGroup keeps track of running tasks added to the group and provides two
+    The TaskWaitGroup keeps track of running tasks added to the group and provides two
     additional functions compared to the simplier WaitGroup class.
     The `run` method wraps coroutines in a task and add them to the wait group.
     Each tasks has a callback set to decrement the WaitGroup counter as they finish.
     """
 
     def __init__(self):
-        super(CancellableWaitGroup, self).__init__()
+        super(TaskWaitGroup, self).__init__()
 
         self._tasks = set()
 
@@ -104,7 +104,7 @@ class CancellableWaitGroup(WaitGroup):
             The wrapped coroutine
         """
 
-        def _cb_internal(_, task):
+        def _cb_internal(task):
             """Calls the `done` method on WaitGroup, removes from set of cancellable tasks
             """
 
@@ -120,18 +120,24 @@ class CancellableWaitGroup(WaitGroup):
             task = coro_or_future
         elif asyncio.iscoroutine(coro_or_future):
             task = asyncio.ensure_future(coro_or_future)
-            task.add_done_callback(_cb_internal)
         else:
             raise TypeError("coro_or_future")
 
+        task.add_done_callback(_cb_internal)
         self.add()
         self._tasks.add(task)
 
         return task
 
     def cancel_all(self):
-        """Cancel all cancels all managed tasks
+        """Cancels all managed tasks
         """
 
         for task in self._tasks:
             task.cancel()
+
+    def __await__(self):
+        """Can call await on TaskWaitGroup
+        """
+
+        return self.wait().__await__()
