@@ -1,9 +1,11 @@
+#!/usr/bin/python3
 """waitgroup module provides  asynchronous read/write lock and wait groups classes
 """
 
 import asyncio
 import typing
 
+CORO_OR_FUTURE = typing.TypeVar('coro_or_future', typing.Coroutine, asyncio.Future)
 
 class WaitGroup:
     """WaitGroup simple implementation with asyncio.
@@ -21,7 +23,7 @@ class WaitGroup:
 
         self._counter = 0
 
-    def add(self, delta: int = 1):
+    def add(self, delta: int = 1) -> None:
         """Add adds delta, which may be negative, to the WaitGroup counter.
         If the counter becomes zero, all coroutines blocked on Wait are released.
         If the counter goes negative, add raises a RuntimeError.
@@ -33,7 +35,7 @@ class WaitGroup:
         coroutine or other event to be waited for.
 
         Args:
-            delta (int, optional): The number of coroutines to add or substract from the waitgroup.
+            delta: The number of coroutines to add or substract from the waitgroup.
 
         Raises:
             RuntimeError: If WaitGroup counter value goes below 0
@@ -46,14 +48,14 @@ class WaitGroup:
         if self._counter == 0 and not self._wait_event.is_set():
             self._wait_event.set()
 
-    async def wait(self):
+    async def wait(self) -> None:
         """Wait blocks until the WaitGroup counter is zero.
         """
 
         if not self._wait_event.is_set():
             await self._wait_event.wait()
 
-    def done(self):
+    def done(self) -> None:
         """Done decrements the WaitGroup counter by one.
         """
 
@@ -86,9 +88,9 @@ class TaskWaitGroup(WaitGroup):
     def __init__(self):
         super(TaskWaitGroup, self).__init__()
 
-        self._tasks = set()
+        self._tasks:typing.MutableSet[asyncio.Future] = set()
 
-    def add_async(self, coro_or_future: typing.Coroutine or asyncio.Future) -> asyncio.Task:
+    def add_async(self, coro_or_future:CORO_OR_FUTURE) -> asyncio.Task:
         """calls add, schedule the execution of a coroutine object: wrap it in a future, calls done
         when the future is done.
         Return a Task object.
@@ -104,7 +106,7 @@ class TaskWaitGroup(WaitGroup):
             The wrapped coroutine
         """
 
-        def _cb_internal(task):
+        def _cb_internal(task:asyncio.Task) -> None:
             """Calls the `done` method on WaitGroup, removes from set of cancellable tasks
             """
 
@@ -129,7 +131,7 @@ class TaskWaitGroup(WaitGroup):
 
         return task
 
-    def cancel_all(self):
+    def cancel_all(self) -> None:
         """Cancels all managed tasks
         """
 
